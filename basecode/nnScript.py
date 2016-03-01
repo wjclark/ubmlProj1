@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.optimize import minimize
 from scipy.io import loadmat
-from math import sqrt
+import math
 import random as rand
 
 def initializeWeights(n_in,n_out):
@@ -17,7 +17,7 @@ def initializeWeights(n_in,n_out):
     # Output: 
     # W: matrix of random initial weights with size (n_out x (n_in + 1))"""
     
-    epsilon = sqrt(6) / sqrt(n_in + n_out + 1);
+    epsilon = math.sqrt(6) / math.sqrt(n_in + n_out + 1);
     W = (np.random.rand(n_out, n_in + 1)*2* epsilon) - epsilon;
     return W
     
@@ -177,11 +177,6 @@ def nnObjFunction(params, *args):
     obj_val = 0  
     
     #Your code here
-    #
-    #
-    #
-    #
-    #
     def feedforward_prop(input_array, w1, w2, n_hidden, n_class): #for a single training/validation/test entry
         a_array = np.zeros((n_hidden))
         z_array = np.zeros((n_hidden))
@@ -198,15 +193,51 @@ def nnObjFunction(params, *args):
             for j in range(n_hidden):
                 b_array[l] += w2[l,j]*z_array[j]
         o_array = sigmoid(b_array)
-        return o_array
+        return o_array, z_array
     
     
+    def error_func(output_array, y, n_class): #output_array from feedforward, y = true label from training_labels
+        yp = np.array([y == i for i in range(n_class)], dtype = int)
+        return .5*sum((yp - output_array)**2)
+
+    def calc_delta(y, output_array, n_class):
+        yp = np.array([y == i for i in range(n_class)], dtype = int)
+        delta = (yp - output_array)*(1-output_array)*output_array
+        return delta
     
+    def calc_grad2(z_array, n_class):
+        #J_grad = zeros((len(input_array), n_class))
+        delta = calc_delta(y,output_array, n_class)
+        J_grad2 =  array([-1 * delta[l] * z_array[j] for l in xrange(n_class) for j in xrange(len(z_array))])
+        return J_grad2
+
+    def calc_grad1(input_array, w2, delta, n_class):
+        #sum_del_w = 0
+        #for l in range(n_class):
+            #sum_del_w += delta[l]*w[####################################
+        J_grad1 = np.array([-1*(1-z_array[j])*z_array[j]*sum(delta*w2[:,j])*(input_array[i]) for j in xrange(w2.shape[0]) for i in xrange(input_array.shape[0])]).reshape((w2.shape[0], input_array.shape[0]))
+    #obj_grad return val is sum of J_grad1 over all training data *1/n (n=num training examples)
+        return J_grad1
     
+    def back_prop(grad):
+        learning_rate = .1
+        w1_new = w1 - learning_rate*grad
+        w2_new = w2 - learning_rate*grad
+        return w1_new, w2_new
+    obj_val = 0
+    obj_grad = np.zeros((w2.shape[0],training_data.shape[1]))
+    for j in xrange(len(training_data)):
+        o_array, z_array = feedforward_prop(training_data[j], w1, w2, n_hidden, n_class)
+        delta = error_func(o_array, training_label[j], n_class)
+        obj_val += delta
+        obj_grad += calc_grad1(training_data[j], w2, delta, n_class)
+        w1, w2 = back_prop(delta)
+    
+    obj_grad.flatten()
     #Make sure you reshape the gradient matrices to a 1D array. for instance if your gradient matrices are grad_w1 and grad_w2
     #you would use code similar to the one below to create a flat array
     #obj_grad = np.concatenate((grad_w1.flatten(), grad_w2.flatten()),0)
-    obj_grad = np.array([])
+    #obj_grad = np.array([])
     
     return (obj_val,obj_grad)
 
@@ -229,8 +260,28 @@ def nnPredict(w1,w2,data):
        
     % Output: 
     % label: a column vector of predicted labels""" 
+    labels = np.empty((len(data)))
+    for x in xrange(len(data)):
+        a_array = np.zeros((n_hidden))
+        z_array = np.zeros((n_hidden))
+        b_array = np.zeros((n_class))
+        o_array = np.zeros((n_class))
+        #calculate a_array values
+        for j in xrange(n_hidden):
+            for i in xrange(len(input_array + 1)):
+                a_array[j] += w1[j,i]*input_array[i]
+        #for j in range(n_hidden):
+        z_array = sigmoid(a_array)
+        for l in range(n_class):
+            for j in range(n_hidden):
+                b_array[l] += w2[l,j]*z_array[j]
+        o_array = sigmoid(b_array)
+        pred = 0
+        for i in range(n_class):
+            if o_array[i] > o_array[pred]:
+                pred = i
+        labels[x] = i
     
-    labels = np.array([])
     #Your code here
     
     return labels
@@ -300,6 +351,6 @@ print('\n Validation set Accuracy:' + str(100*np.mean((predicted_label == valida
 
 predicted_label = nnPredict(w1,w2,test_data)
 
-#find the accuracy on Validation Dataset
+#find the accuracy on Test Dataset
 
 print('\n Test set Accuracy:' + + str(100*np.mean((predicted_label == test_label).astype(float))) + '%')
