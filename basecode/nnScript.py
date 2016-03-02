@@ -81,8 +81,8 @@ def preprocess():
         labels = np.ones((length, 1)) * i
         test_label = np.concatenate((test_label, labels))
         test_data = np.concatenate((test_data, testArr))
-    print "\n", test_data.shape
-    print test_label.shape
+    #print "\n", test_data.shape
+    #print test_label.shape
 
     train = "train"
     for i in xrange(10):
@@ -91,8 +91,8 @@ def preprocess():
         labels = np.ones((length, 1)) * i
         training = np.concatenate((training, trainArr))
         training_label = np.concatenate((training_label, labels))
-    print "\n", training.shape
-    print training_label.shape
+    #print "\n", training.shape
+    #print training_label.shape
 
     test_data = test_data/255
     training = training/255
@@ -127,7 +127,7 @@ def preprocess():
         validation_label[i] = new_label
     print "done preprocessing"
     
-    return train_data, train_label, validation_data, validation_label, test_data, test_label
+    return train_data[0:100,:], train_label[0:100,:], validation_data[0:100,:], validation_label[0:100,:], test_data[0:100,:], test_label[0:100,:]
     
     
     
@@ -175,6 +175,7 @@ def nnObjFunction(params, *args):
     w1 = params[0:n_hidden * (n_input + 1)].reshape( (n_hidden, (n_input + 1)))
     w2 = params[(n_hidden * (n_input + 1)):].reshape((n_class, (n_hidden + 1)))
     obj_val = 0  
+    iteration = 0
     
     #Your code here
     def feedforward_prop(input_array, w1, w2, n_hidden, n_class): #for a single training/validation/test entry
@@ -202,43 +203,67 @@ def nnObjFunction(params, *args):
 
     def calc_delta(y, output_array, n_class):
         yp = np.array([y == i for i in range(n_class)], dtype = int)
-        delta = (yp - output_array)*(1-output_array)*output_array
+        delta = np.array([(yp[l] - output_array[l])*(1-output_array[l])*output_array[l] for l in xrange(n_class)])
+        #print yp.shape, output_array.shape, delta.shape
         return delta
     
-    def calc_grad2(z_array, n_class):
+    def calc_grad2(z_array, y, output_array, n_class):
         #J_grad = zeros((len(input_array), n_class))
         delta = calc_delta(y,output_array, n_class)
-        J_grad2 =  array([-1 * delta[l] * z_array[j] for l in xrange(n_class) for j in xrange(len(z_array))])
-        return J_grad2
+        #print z_array.shape
+        #print delta.shape
+        J_grad2 = np.array([(delta[l] * z_array[j]) for l in xrange(n_class) for j in xrange(len(z_array))])
+        return J_grad2.reshape((n_class, len(z_array)))
 
     def calc_grad1(input_array, w2, delta, n_class):
         #sum_del_w = 0
         #for l in range(n_class):
             #sum_del_w += delta[l]*w[####################################
-        J_grad1 = np.array([-1*(1-z_array[j])*z_array[j]*sum(delta*w2[:,j])*(input_array[i]) for j in xrange(w2.shape[0]) for i in xrange(input_array.shape[0])]).reshape((w2.shape[0], input_array.shape[0]))
+        J_grad1 = np.array([-1*(1-z_array[j])*z_array[j]*sum(delta*w2[:,j])*(input_array[i]) for j in xrange(w2.shape[1] - 1) for i in xrange(input_array.shape[0])]).reshape((w2.shape[1] - 1, input_array.shape[0]))
     #obj_grad return val is sum of J_grad1 over all training data *1/n (n=num training examples)
         return J_grad1
     
-    def back_prop(grad):
+    def back_prop(grad1, grad2):
         learning_rate = .1
-        w1_new = w1 - learning_rate*grad
-        w2_new = w2 - learning_rate*grad
+        print w1.shape, w2.shape
+        for j in xrange(w1.shape[0]):
+            for i in xrange(w1.shape[1] - 1):
+                w1[j,i] -= learning_rate*grad1[j,i]
+        for l in xrange(w2.shape[0]):
+            for j in xrange(w2.shape[1] - 1):
+                w2[l,j] -= learning_rate*grad2[l,j]
+        #w1_new = w1 - learning_rate*grad1
+        #w2_new = w2 - learning_rate*grad2
         return w1_new, w2_new
+    
+    
     obj_val = 0
-    obj_grad = np.zeros((w2.shape[0],training_data.shape[1]))
+    obj_grad1 = np.zeros((w1.shape[0],training_data.shape[1]))
+    obj_grad2 = np.zeros((w2.shape[0], w2.shape[1] -1))
     for j in xrange(len(training_data)):
         o_array, z_array = feedforward_prop(training_data[j], w1, w2, n_hidden, n_class)
         delta = error_func(o_array, training_label[j], n_class)
         obj_val += delta
-        obj_grad += calc_grad1(training_data[j], w2, delta, n_class)
-        w1, w2 = back_prop(delta)
-    
-    obj_grad.flatten()
+        obj_grad2 += calc_grad2(z_array, training_label[j], o_array, n_class)
+        obj_grad1 += calc_grad1(training_data[j], w2, delta, n_class)
+        #w1, w2 = back_prop(obj_grad1, obj_grad2)
+        learning_rate = .1
+        #print w1.shape, obj_grad1.shape, w2.shape, obj_grad2.shape
+        for j in xrange(w1.shape[0]):
+            for i in xrange(w1.shape[1] - 1):
+                w1[j,i] -= learning_rate*obj_grad1[j,i]
+        for l in xrange(w2.shape[0]):
+            for j in xrange(w2.shape[1] - 1):
+                w2[l,j] -= learning_rate*obj_grad2[l,j]
+        
+    obj_grad = np.concatenate((obj_grad1.flatten(), obj_grad2.flatten()),0)
     #Make sure you reshape the gradient matrices to a 1D array. for instance if your gradient matrices are grad_w1 and grad_w2
     #you would use code similar to the one below to create a flat array
     #obj_grad = np.concatenate((grad_w1.flatten(), grad_w2.flatten()),0)
     #obj_grad = np.array([])
     
+    print iteration 
+    iteration += 1
     return (obj_val,obj_grad)
 
 
@@ -323,7 +348,7 @@ args = (n_input, n_hidden, n_class, train_data, train_label, lambdaval)
 opts = {'maxiter' : 50}    # Preferred value.
 
 nn_params = minimize(nnObjFunction, initialWeights, jac=True, args=args,method='CG', options=opts)
-
+print "minimized"
 #In Case you want to use fmin_cg, you may have to split the nnObjectFunction to two functions nnObjFunctionVal
 #and nnObjGradient. Check documentation for this function before you proceed.
 #nn_params, cost = fmin_cg(nnObjFunctionVal, initialWeights, nnObjGradient,args = args, maxiter = 50)
